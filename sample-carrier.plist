@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>CarrierName</key>
+    <string>示例运营商</string>
+    <key>MCC</key>
+    <string>460</string>
+    <key>MNC</key>
+    <string>00</string>
+    <key>SupportedSIMs</key>
+    <array>
+      <string>SIM1</string>
+      <string>SIM2</string>
+    </array>
+    <key>APN</key>
+    <string>internet.example</string>
+    <key>IMSConfig</key>
+    <dict>
+      <key>VoLTEEnabled</key>
+      <true/>
+      <key>VoNRAllowed</key>
+      <false/>
+      <key>IMSDomain</key>
+      <string>ims.example</string>
+    </dict>
+    <key>ProfileVersion</key>
+    <integer>1</integer>
+    <key>Notes</key>
+    <string>这是一份演示数据，不对应真实运营商。</string>
+  </dict>
+</plist>
