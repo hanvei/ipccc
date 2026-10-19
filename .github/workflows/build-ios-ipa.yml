@@ -1,0 +1,148 @@
+name: Build self-signed iOS IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      signing_mode:
+        description: Signing profile type
+        required: true
+        type: choice
+        options:
+          - development
+          - ad-hoc
+
+permissions:
+  contents: read
+
+jobs:
+  build-ipa:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+      IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
+      SIGNING_MODE: ${{ inputs.signing_mode }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Verify signing inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in IOS_CERTIFICATE_BASE64 IOS_CERTIFICATE_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 IOS_TEAM_ID IOS_BUNDLE_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing GitHub secret or repository variable: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Install Apple signing certificate and profile
+        id: signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/carrier-studio.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          CERTIFICATE_PATH="$RUNNER_TEMP/signing-certificate.p12"
+          PROFILE_PATH="$RUNNER_TEMP/signing-profile.mobileprovision"
+          DECODED_PROFILE_PATH="$RUNNER_TEMP/signing-profile.plist"
+
+          echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -k "$KEYCHAIN_PATH" -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" "$HOME/Library/Keychains/login.keychain-db"
+
+          security cms -D -i "$PROFILE_PATH" > "$DECODED_PROFILE_PATH"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$DECODED_PROFILE_PATH")
+          PROFILE_APP_ID=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$DECODED_PROFILE_PATH")
+          EXPECTED_APP_ID="$IOS_TEAM_ID.$IOS_BUNDLE_ID"
+          case "$EXPECTED_APP_ID" in
+            "$PROFILE_APP_ID") ;;
+            "${PROFILE_APP_ID%\*}"*) ;;
+            *)
+              echo "Provisioning profile App ID ($PROFILE_APP_ID) does not match $EXPECTED_APP_ID" >&2
+              exit 1
+              ;;
+          esac
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "profile_uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
+
+      - name: Archive iOS app
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$SIGNING_MODE" == "development" ]]; then
+            SIGNING_IDENTITY="Apple Development"
+          else
+            SIGNING_IDENTITY="Apple Distribution"
+          fi
+
+          xcodebuild \
+            -project ios/CarrierStudio.xcodeproj \
+            -scheme CarrierStudio \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/CarrierStudio.xcarchive" \
+            archive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+            DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+            PROVISIONING_PROFILE_SPECIFIER="${{ steps.signing.outputs.profile_uuid }}" \
+            PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_ID"
+
+      - name: Export signed IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROFILE_UUID='${{ steps.signing.outputs.profile_uuid }}'
+          if [[ "$SIGNING_MODE" == "development" ]]; then
+            EXPORT_METHOD=development
+          else
+            EXPORT_METHOD=ad-hoc
+          fi
+
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>$EXPORT_METHOD</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>$IOS_TEAM_ID</string>
+            <key>provisioningProfiles</key><dict>
+              <key>$IOS_BUNDLE_ID</key><string>$PROFILE_UUID</string>
+            </dict>
+          </dict></plist>
+          PLIST
+
+          mkdir -p dist
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/CarrierStudio.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+          cp "$RUNNER_TEMP/export/CarrierStudio.ipa" dist/CarrierStudio.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CarrierStudio-${{ inputs.signing_mode }}-IPA
+          path: dist/CarrierStudio.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: |
+          security delete-keychain "$RUNNER_TEMP/carrier-studio.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/signing-certificate.p12" "$RUNNER_TEMP/signing-profile.mobileprovision" "$RUNNER_TEMP/signing-profile.plist"
