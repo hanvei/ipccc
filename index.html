@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f6fb">
+  <title>IPCC 配置工作台</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="IPCC 配置工作台首页">
+        <span class="brand-mark">IP</span>
+        <span><strong>Carrier Studio</strong><small>IPCC 配置工作台</small></span>
+      </a>
+      <div class="side-label">工作区</div>
+      <button class="nav-item active" type="button"><span class="nav-icon">▤</span>配置编辑器</button>
+      <div class="side-note"><span class="status-dot"></span><span><b>离线模式</b><small>文件只在此浏览器中处理</small></span></div>
+      <div class="sidebar-bottom">本地工具 · 不连接设备</div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="breadcrumbs">工作区 <span>/</span> 配置编辑器</div>
+        <div class="top-actions"><span class="privacy-pill"><span>●</span> 本地处理 · 无需激活</span><button class="icon-button" id="helpButton" aria-label="查看说明" title="查看说明">?</button></div>
+      </header>
+
+      <section class="page-heading">
+        <div><div class="eyebrow">CARRIER PROFILE TOOLKIT</div><h1>运营商配置工作台</h1><p>导入 plist，检查关键字段，安全地生成一份修改后的副本。</p></div>
+        <button class="button button-quiet" id="sampleButton"><span>✦</span> 打开演示配置</button>
+      </section>
+
+      <section class="notice" role="note"><span class="notice-icon">i</span><p><b>此工具只编辑配置文件副本。</b>它不会把配置安装到 iPhone，也不能更改 iOS 系统正在使用的 IPCC。首版读取 XML plist；二进制 plist 和 .ipcc 压缩包暂不支持。</p><button class="notice-close" id="noticeClose" aria-label="关闭提示">×</button></section>
+
+      <section class="workspace-grid">
+        <div class="left-column">
+          <article class="card import-card" id="dropZone">
+            <div class="card-heading"><div><h2>导入配置</h2><p>从电脑选择一个 XML 格式的 .plist 或 .xml 文件</p></div><span class="step-badge">01</span></div>
+            <div class="drop-area" id="dropArea">
+              <div class="upload-icon"><span>↑</span></div>
+              <strong>把文件拖到这里</strong>
+              <span class="muted">或者</span>
+              <button class="button button-primary" id="chooseFile">选择 plist 文件</button>
+              <small>只在本机读取 · 最大 15 MB</small>
+              <input id="fileInput" type="file" accept=".plist,.xml,application/xml,text/xml" hidden>
+            </div>
+            <div class="file-state" id="fileState" hidden></div>
+          </article>
+
+          <article class="card editor-card">
+            <div class="card-heading editor-heading"><div><div class="title-line"><h2>配置字段</h2><span class="count-badge" id="fieldCount">等待导入</span></div><p id="editorHint">导入文件后，这里会显示可以查看和编辑的字段。</p></div><span class="step-badge">02</span></div>
+            <div class="toolbar"><label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="搜索字段名称或内容" disabled></label><button class="text-button" id="resetButton" disabled>还原修改</button></div>
+            <div id="emptyState" class="empty-state"><div class="empty-art"><span>▧</span></div><b>还没有配置文件</b><span>导入一个 plist，或先打开演示配置体验编辑流程。</span></div>
+            <div class="field-list" id="fieldList" hidden></div>
+            <div class="raw-preview" id="rawPreview" hidden><button class="raw-toggle" id="rawToggle"><span>▸</span> 查看完整配置结构</button><pre id="rawText"></pre></div>
+          </article>
+        </div>
+
+        <div class="right-column">
+          <article class="card summary-card">
+            <div class="card-heading"><div><h2>文件概览</h2><p>当前编辑文件的信息</p></div><span class="step-badge">INFO</span></div>
+            <div id="summaryEmpty" class="summary-empty">导入文件后显示摘要</div>
+            <div id="summaryBody" hidden>
+              <div class="file-name-row"><span class="file-icon">PL</span><div><b id="summaryName">—</b><small id="summaryType">XML Property List</small></div></div>
+              <div class="summary-stats"><div><span>可编辑字段</span><b id="summaryFields">0</b></div><div><span>待导出改动</span><b id="summaryChanges">0</b></div></div>
+              <div class="summary-divider"></div>
+              <div class="summary-item"><span>原始文件</span><b id="summarySize">—</b></div>
+              <div class="summary-item"><span>处理方式</span><b class="local-label">仅本地</b></div>
+            </div>
+          </article>
+
+          <article class="card export-card">
+            <div class="card-heading"><div><h2>检查与导出</h2><p>保留原文件，单独导出修改后的副本</p></div><span class="step-badge">03</span></div>
+            <div class="export-preview" id="exportPreview"><div class="preview-icon">⇩</div><div><b>尚无可导出的配置</b><small>导入后可以预览差异并保存副本。</small></div></div>
+            <button class="button button-outline full-width" id="diffButton" disabled>预览修改差异 <span>↗</span></button>
+            <button class="button button-primary full-width export-button" id="exportButton" disabled>导出修改后的 plist <span>↓</span></button>
+            <p class="export-footnote">导出的文件不会自动安装到设备。请先确认配置来源和适用机型。</p>
+          </article>
+
+          <article class="tip-card"><div class="tip-icon">✧</div><div><b>配置文件安全提示</b><p>运营商 plist 会影响蜂窝网络参数。建议先保留原件，只修改你确认需要的字段。</p></div></article>
+        </div>
+      </section>
+      <footer class="page-footer"><span>Carrier Studio <span class="footer-dot">·</span> 本地配置编辑器</span><span>不会连接设备或上传文件</span></footer>
+    </main>
+  </div>
+
+  <dialog id="diffDialog" class="dialog"><div class="dialog-head"><div><span class="eyebrow">CHANGE REVIEW</span><h2>修改差异</h2></div><button class="icon-button" id="closeDiff" aria-label="关闭">×</button></div><p class="dialog-description">这里只列出与你导入时相比发生变化的字段。导出时会生成新文件，原件保持不变。</p><div id="diffList" class="diff-list"></div><div class="dialog-actions"><button class="button button-quiet" id="closeDiffBottom">返回编辑</button><button class="button button-primary" id="exportFromDiff">导出副本</button></div></dialog>
+  <dialog id="helpDialog" class="dialog help-dialog"><div class="dialog-head"><div><span class="eyebrow">ABOUT THIS TOOL</span><h2>使用说明</h2></div><button class="icon-button" id="closeHelp" aria-label="关闭">×</button></div><div class="help-copy"><p><b>1. 导入：</b>选择未加密的 XML plist 文件。文件仅由当前浏览器读取。</p><p><b>2. 编辑：</b>在字段列表里改值。工具会保留未修改的字段，并标记每个改动。</p><p><b>3. 检查：</b>打开“预览修改差异”，确认前后内容。</p><p><b>4. 导出：</b>保存为新的 plist 文件；不会安装到 iPhone。</p><p class="help-warning">当前版本不支持 .ipcc 压缩包、二进制 plist、设备连接、系统目录写入或网络锁定操作。</p></div><div class="dialog-actions"><button class="button button-primary" id="closeHelpBottom">明白了</button></div></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js"></script>
+</body>
+</html>
